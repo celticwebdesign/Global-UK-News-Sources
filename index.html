@@ -284,56 +284,16 @@ const SOURCES = [
   { name:'Tico Times', country:'Costa Rica', flag:'🇨🇷', region:'Latin America', url:'https://ticotimes.net/feed', home:'https://ticotimes.net' },
 ];
 
-// Strategy 1: rss2json — dedicated RSS-to-JSON API, handles CORS + XML parsing
-// Strategy 2: allorigins /raw — returns raw feed content as text
-// Strategy 3: corsproxy.io — raw text fallback
+// Fetch via our own Netlify Function — no CORS, no third-party proxies
 async function fetchFeed(rssUrl) {
-  // --- Strategy 1: rss2json (returns pre-parsed JSON items) ---
-  try {
-    const r2jUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rssUrl)}`;
-    const res = await fetch(r2jUrl, { signal: AbortSignal.timeout(12000) });
-    if (res.ok) {
-      const json = await res.json();
-      if (json.status === 'ok' && Array.isArray(json.items) && json.items.length) {
-        return { mode: 'rss2json', items: json.items };
-      }
-    }
-  } catch(e) { /* fall through */ }
-
-  // --- Strategy 2: allorigins raw (returns raw XML/Atom text) ---
-  try {
-    const rawUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(rssUrl)}`;
-    const res = await fetch(rawUrl, { signal: AbortSignal.timeout(12000) });
-    if (res.ok) {
-      const text = await res.text();
-      if (text && (text.includes('<item') || text.includes('<entry'))) {
-        return { mode: 'xml', text };
-      }
-    }
-  } catch(e) { /* fall through */ }
-
-  // --- Strategy 3: corsproxy.io (raw text fallback) ---
-  try {
-    const cpUrl = `https://corsproxy.io/?${encodeURIComponent(rssUrl)}`;
-    const res = await fetch(cpUrl, { signal: AbortSignal.timeout(12000) });
-    if (res.ok) {
-      const text = await res.text();
-      if (text && (text.includes('<item') || text.includes('<entry'))) {
-        return { mode: 'xml', text };
-      }
-    }
-  } catch(e) { /* fall through */ }
-
-  throw new Error('All strategies failed');
-}
-
-function parseRss2Json(items) {
-  return items.map(i => ({
-    title: i.title || '',
-    link: i.link || '#',
-    desc: stripHtml(i.description || i.content || ''),
-    date: i.pubDate || '',
-  }));
+  const proxyUrl = `/api/proxy?url=${encodeURIComponent(rssUrl)}`;
+  const res = await fetch(proxyUrl, { signal: AbortSignal.timeout(15000) });
+  if (!res.ok) throw new Error(`Proxy returned ${res.status}`);
+  const text = await res.text();
+  if (!text || (!text.includes('<item') && !text.includes('<entry'))) {
+    throw new Error('Empty or invalid feed');
+  }
+  return { mode: 'xml', text };
 }
 
 function parseXML(xmlStr) {
@@ -436,7 +396,7 @@ async function loadFeed(s) {
   const gr = document.getElementById(`gr-${sl}`);
   try {
     const result = await fetchFeed(s.url);
-    const items = result.mode === 'rss2json' ? parseRss2Json(result.items) : parseXML(result.text);
+    const items = parseXML(result.text);
     articles += Math.min(items.length, 6);
     if (gr) gr.innerHTML = renderCards(s, items);
     if (st) { st.textContent = items.length + ' articles'; st.className = 'source-status ok'; }
