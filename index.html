@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Global Perspectives — World News</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --surface2: #21262d;
+      --surface3: #30363d;
+      --text: #e6edf3;
+      --text-muted: #8b949e;
+      --text-dim: #6e7681;
+      --accent: #58a6ff;
+      --accent-hover: #79c0ff;
+      --border: #30363d;
+      --radius: 10px;
+      --radius-sm: 6px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .header-left h1 { font-size: 1.25rem; font-weight: 700; letter-spacing: -0.02em; }
+    .header-left p { font-size: 0.78rem; color: var(--text-muted); margin-top: 1px; }
+    .header-right { display: flex; align-items: center; gap: 10px; }
+    #last-updated { font-size: 0.75rem; color: var(--text-dim); }
+    button { cursor: pointer; border: none; font-family: inherit; }
+    .btn-refresh {
+      background: var(--accent);
+      color: #0d1117;
+      font-weight: 600;
+      font-size: 0.82rem;
+      padding: 7px 16px;
+      border-radius: var(--radius-sm);
+      transition: background 0.15s, opacity 0.15s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn-refresh:hover { background: var(--accent-hover); }
+    .btn-refresh:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-refresh.loading .spin { animation: spin 0.8s linear infinite; display: inline-block; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .filter-bar {
+      padding: 14px 24px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 73px;
+      z-index: 99;
+    }
+    .filter-btn {
+      background: var(--surface2);
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 5px 14px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      transition: all 0.15s;
+    }
+    .filter-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .filter-btn.active { background: var(--accent); color: #0d1117; border-color: var(--accent); font-weight: 600; }
+    .stats-bar {
+      padding: 10px 24px;
+      font-size: 0.78rem;
+      color: var(--text-dim);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+    main { max-width: 1400px; margin: 0 auto; padding: 24px; }
+    .source-section { margin-bottom: 36px; }
+    .source-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 14px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+    }
+    .source-flag { font-size: 1.4rem; line-height: 1; }
+    .source-info h2 { font-size: 1rem; font-weight: 700; color: var(--text); }
+    .source-info p { font-size: 0.75rem; color: var(--text-muted); }
+    .source-status {
+      margin-left: auto;
+      font-size: 0.72rem;
+      padding: 2px 8px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+    }
+    .source-status.ok { color: #3fb950; border-color: #3fb950; }
+    .source-status.err { color: #f85149; border-color: #f85149; }
+    .source-status.loading { color: var(--accent); border-color: var(--accent); }
+    .news-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 14px;
+    }
+    .news-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      transition: border-color 0.15s, transform 0.15s;
+      text-decoration: none;
+      color: inherit;
+    }
+    .news-card:hover { border-color: var(--accent); transform: translateY(-1px); }
+    .news-card-title {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--text);
+      line-height: 1.45;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .news-card-desc {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .news-card-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: auto;
+      padding-top: 8px;
+      border-top: 1px solid var(--border);
+    }
+    .news-card-date { font-size: 0.7rem; color: var(--text-dim); }
+    .news-card-link { font-size: 0.7rem; color: var(--accent); font-weight: 500; }
+    .skeleton-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+    .skeleton-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .skeleton-line { background: var(--surface3); border-radius: 4px; animation: shimmer 1.5s infinite; }
+    @keyframes shimmer { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
+    .error-card {
+      background: var(--surface);
+      border: 1px solid #f8514940;
+      border-radius: var(--radius);
+      padding: 16px;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      grid-column: 1 / -1;
+    }
+    .error-card a { color: var(--accent); text-decoration: none; }
+    .region-heading {
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      margin-bottom: 16px;
+      padding: 4px 10px;
+      background: var(--surface2);
+      border-radius: var(--radius-sm);
+      display: inline-block;
+    }
+    footer {
+      text-align: center;
+      padding: 24px;
+      font-size: 0.75rem;
+      color: var(--text-dim);
+      border-top: 1px solid var(--border);
+      margin-top: 20px;
+    }
+    footer a { color: var(--accent); text-decoration: none; }
+    @media (max-width: 600px) {
+      header { padding: 12px 16px; }
+      .filter-bar { padding: 10px 16px; top: 68px; }
+      main { padding: 16px; }
+      .news-grid, .skeleton-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <h1>🌍 Global Perspectives</h1>
+    <p>International English-language news — non-UK, non-US</p>
+  </div>
+  <div class="header-right">
+    <span id="last-updated"></span>
+    <button class="btn-refresh" id="refreshBtn" onclick="loadAllFeeds()">
+      <span class="spin">↻</span> Refresh
+    </button>
+  </div>
+</header>
+
+<div class="filter-bar">
+  <button class="filter-btn active" onclick="filterRegion('all',this)">All</button>
+  <button class="filter-btn" onclick="filterRegion('Middle East',this)">🕌 Middle East</button>
+  <button class="filter-btn" onclick="filterRegion('Europe',this)">🇪🇺 Europe</button>
+  <button class="filter-btn" onclick="filterRegion('Asia-Pacific',this)">🌏 Asia-Pacific</button>
+  <button class="filter-btn" onclick="filterRegion('South Asia',this)">🇮🇳 South Asia</button>
+  <button class="filter-btn" onclick="filterRegion('Africa',this)">🌍 Africa</button>
+  <button class="filter-btn" onclick="filterRegion('Latin America',this)">🌎 Latin America</button>
+</div>
+
+<div class="stats-bar" id="statsBar"><span>⏳ Loading feeds…</span></div>
+
+<main id="app"></main>
+
+<footer>
+  Global Perspectives — aggregates publicly available RSS feeds.<br>
+  All articles © their respective publishers. No tracking. No ads.
+</footer>
+
+<script>
+const SOURCES = [
+  // Middle East
+  { name:'Al Jazeera', country:'Qatar', flag:'🇶🇦', region:'Middle East', url:'https://www.aljazeera.com/xml/rss/all.xml', home:'https://www.aljazeera.com' },
+  { name:'Arab News', country:'Saudi Arabia', flag:'🇸🇦', region:'Middle East', url:'https://www.arabnews.com/rss.xml', home:'https://www.arabnews.com' },
+  { name:'The National', country:'UAE', flag:'🇦🇪', region:'Middle East', url:'https://www.thenationalnews.com/rss/2.0', home:'https://www.thenationalnews.com' },
+  { name:'Daily Sabah', country:'Turkey', flag:'🇹🇷', region:'Middle East', url:'https://www.dailysabah.com/feeds/rss', home:'https://www.dailysabah.com' },
+  { name:'Jerusalem Post', country:'Israel', flag:'🇮🇱', region:'Middle East', url:'https://www.jpost.com/Rss/RssFeedsHeadlines.aspx', home:'https://www.jpost.com' },
+  // Europe
+  { name:'France 24', country:'France', flag:'🇫🇷', region:'Europe', url:'https://www.france24.com/en/rss', home:'https://www.france24.com/en' },
+  { name:'Deutsche Welle', country:'Germany', flag:'🇩🇪', region:'Europe', url:'https://rss.dw.com/rdf/rss-en-all', home:'https://www.dw.com/en' },
+  { name:'Euronews', country:'EU', flag:'🇪🇺', region:'Europe', url:'https://www.euronews.com/rss?format=mrss&level=theme&name=news', home:'https://www.euronews.com' },
+  { name:'SwissInfo', country:'Switzerland', flag:'🇨🇭', region:'Europe', url:'https://www.swissinfo.ch/eng/rss/news', home:'https://www.swissinfo.ch' },
+  { name:'RFI English', country:'France', flag:'🇫🇷', region:'Europe', url:'https://www.rfi.fr/en/rss', home:'https://www.rfi.fr/en' },
+  // Asia-Pacific
+  { name:'Japan Times', country:'Japan', flag:'🇯🇵', region:'Asia-Pacific', url:'https://www.japantimes.co.jp/feed/', home:'https://www.japantimes.co.jp' },
+  { name:'South China Morning Post', country:'Hong Kong', flag:'🇭🇰', region:'Asia-Pacific', url:'https://www.scmp.com/rss/91/feed', home:'https://www.scmp.com' },
+  { name:'Straits Times', country:'Singapore', flag:'🇸🇬', region:'Asia-Pacific', url:'https://www.straitstimes.com/news/world/rss.xml', home:'https://www.straitstimes.com' },
+  { name:'Korea Herald', country:'South Korea', flag:'🇰🇷', region:'Asia-Pacific', url:'https://www.koreaherald.com/common/rss_xml.php?ct=102', home:'https://www.koreaherald.com' },
+  { name:'Bangkok Post', country:'Thailand', flag:'🇹🇭', region:'Asia-Pacific', url:'https://www.bangkokpost.com/rss/data/topstories.xml', home:'https://www.bangkokpost.com' },
+  { name:'Jakarta Post', country:'Indonesia', flag:'🇮🇩', region:'Asia-Pacific', url:'https://www.thejakartapost.com/feed', home:'https://www.thejakartapost.com' },
+  // South Asia
+  { name:'The Hindu', country:'India', flag:'🇮🇳', region:'South Asia', url:'https://www.thehindu.com/feeder/default.rss', home:'https://www.thehindu.com' },
+  { name:'Dawn', country:'Pakistan', flag:'🇵🇰', region:'South Asia', url:'https://www.dawn.com/feeds/home', home:'https://www.dawn.com' },
+  { name:'Daily Star', country:'Bangladesh', flag:'🇧🇩', region:'South Asia', url:'https://www.thedailystar.net/frontpage/rss.xml', home:'https://www.thedailystar.net' },
+  // Africa
+  { name:'Daily Maverick', country:'South Africa', flag:'🇿🇦', region:'Africa', url:'https://www.dailymaverick.co.za/feed/', home:'https://www.dailymaverick.co.za' },
+  { name:'The East African', country:'Kenya', flag:'🇰🇪', region:'Africa', url:'https://www.theeastafrican.co.ke/tea/rss', home:'https://www.theeastafrican.co.ke' },
+  { name:'Ahram Online', country:'Egypt', flag:'🇪🇬', region:'Africa', url:'http://english.ahram.org.eg/NewsContentPrint/2/0/rss.aspx', home:'https://english.ahram.org.eg' },
+  // Latin America
+  { name:'MercoPress', country:'Uruguay', flag:'🇺🇾', region:'Latin America', url:'https://en.mercopress.com/rss', home:'https://en.mercopress.com' },
+  { name:'Buenos Aires Herald', country:'Argentina', flag:'🇦🇷', region:'Latin America', url:'https://buenosairesherald.com/feed', home:'https://buenosairesherald.com' },
+  { name:'The Brazilian Report', country:'Brazil', flag:'🇧🇷', region:'Latin America', url:'https://brazilian.report/feed/', home:'https://brazilian.report' },
+];
+
+const PROXIES = [
+  u => `https://api.allorigins.win/get?url=${encodeURIComponent(u)}`,
+  u => `https://corsproxy.io/?${encodeURIComponent(u)}`,
+];
+
+async function fetchRSS(rssUrl) {
+  for (const make of PROXIES) {
+    try {
+      const res = await fetch(make(rssUrl), { signal: AbortSignal.timeout(10000) });
+      if (!res.ok) continue;
+      const json = await res.json();
+      return json.contents ?? json;
+    } catch(e) { /* try next */ }
+  }
+  throw new Error('All proxies failed');
+}
+
+function parseXML(xmlStr) {
+  const doc = new DOMParser().parseFromString(xmlStr, 'text/xml');
+  const items = [];
+  const rssItems = doc.querySelectorAll('item');
+  if (rssItems.length) {
+    rssItems.forEach(el => items.push({
+      title: el.querySelector('title')?.textContent?.trim() || '',
+      link: el.querySelector('link')?.textContent?.trim() || '#',
+      desc: stripHtml(el.querySelector('description')?.textContent || ''),
+      date: el.querySelector('pubDate')?.textContent?.trim() || '',
+    }));
+    return items;
+  }
+  doc.querySelectorAll('entry').forEach(el => items.push({
+    title: el.querySelector('title')?.textContent?.trim() || '',
+    link: el.querySelector('link[rel="alternate"]')?.getAttribute('href') || el.querySelector('link')?.getAttribute('href') || '#',
+    desc: stripHtml(el.querySelector('summary,content')?.textContent || ''),
+    date: el.querySelector('updated,published')?.textContent?.trim() || '',
+  }));
+  return items;
+}
+
+function stripHtml(h) {
+  const d = document.createElement('div');
+  d.innerHTML = h;
+  return d.textContent || d.innerText || '';
+}
+
+function timeAgo(str) {
+  if (!str) return '';
+  try {
+    const d = new Date(str), now = new Date(), diff = (now - d) / 1000;
+    if (isNaN(d)) return '';
+    if (diff < 60) return 'just now';
+    if (diff < 3600) return Math.floor(diff/60) + 'm ago';
+    if (diff < 86400) return Math.floor(diff/3600) + 'h ago';
+    if (diff < 172800) return 'yesterday';
+    return d.toLocaleDateString(undefined,{day:'numeric',month:'short'});
+  } catch { return ''; }
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function slug(n) { return n.replace(/[^a-z0-9]/gi,'-').toLowerCase(); }
+
+let activeRegion = 'all', loaded = 0, errors = 0, articles = 0;
+
+function stats() {
+  document.getElementById('statsBar').innerHTML =
+    `<span>✅ ${loaded}/${SOURCES.length} loaded</span>` +
+    (errors ? `<span>⚠️ ${errors} failed (CORS/offline)</span>` : '') +
+    `<span>📰 ${articles} articles</span>`;
+}
+
+function skeletonCard() {
+  return `<div class="skeleton-card">
+    <div class="skeleton-line" style="height:13px;width:88%"></div>
+    <div class="skeleton-line" style="height:13px;width:65%"></div>
+    <div class="skeleton-line" style="height:10px;width:40%;margin-top:4px"></div>
+  </div>`;
+}
+
+function buildSkeleton(s) {
+  return `<div class="source-section" data-region="${s.region}">
+    <div class="source-header">
+      <span class="source-flag">${s.flag}</span>
+      <div class="source-info"><h2>${s.name}</h2><p>${s.country} &middot; ${s.region}</p></div>
+      <span class="source-status loading" id="st-${slug(s.name)}">Loading…</span>
+    </div>
+    <div class="skeleton-grid" id="gr-${slug(s.name)}">${[1,2,3].map(skeletonCard).join('')}</div>
+  </div>`;
+}
+
+function renderCards(s, items) {
+  const MAX = 6, show = items.slice(0, MAX);
+  if (!show.length) return `<div class="error-card">No articles found. <a href="${s.home}" target="_blank" rel="noopener">Visit ${s.name} →</a></div>`;
+  const cards = show.map(item => `
+    <a class="news-card" href="${esc(item.link)}" target="_blank" rel="noopener noreferrer">
+      <div class="news-card-title">${esc(item.title)}</div>
+      ${item.desc ? `<div class="news-card-desc">${esc(item.desc.substring(0,180))}</div>` : ''}
+      <div class="news-card-meta">
+        <span class="news-card-date">${timeAgo(item.date)}</span>
+        <span class="news-card-link">Read →</span>
+      </div>
+    </a>`).join('');
+  const more = items.length > MAX
+    ? `<a class="news-card" href="${s.home}" target="_blank" rel="noopener noreferrer" style="justify-content:center;align-items:center;border-style:dashed;text-align:center">
+        <div style="color:var(--accent);font-size:.85rem;font-weight:600">+${items.length-MAX} more<br><span style="font-size:.72rem;color:var(--text-muted)">Visit ${s.name}</span></div>
+      </a>` : '';
+  return `<div class="news-grid">${cards}${more}</div>`;
+}
+
+async function loadFeed(s) {
+  const sl = slug(s.name);
+  const st = document.getElementById(`st-${sl}`);
+  const gr = document.getElementById(`gr-${sl}`);
+  try {
+    const xml = await fetchRSS(s.url);
+    const items = parseXML(xml);
+    articles += Math.min(items.length, 6);
+    if (gr) gr.innerHTML = renderCards(s, items);
+    if (st) { st.textContent = items.length + ' articles'; st.className = 'source-status ok'; }
+    loaded++;
+  } catch(e) {
+    if (gr) gr.innerHTML = `<div class="error-card">Feed unavailable (CORS or offline). <a href="${s.home}" target="_blank" rel="noopener">Visit ${s.name} →</a></div>`;
+    if (st) { st.textContent = 'Unavailable'; st.className = 'source-status err'; }
+    errors++;
+  }
+  stats();
+}
+
+function applyFilter(region) {
+  document.querySelectorAll('.region-group').forEach(g => {
+    g.style.display = (region === 'all' || g.dataset.region === region) ? '' : 'none';
+  });
+}
+
+function filterRegion(region, btn) {
+  activeRegion = region;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  applyFilter(region);
+}
+
+async function loadAllFeeds() {
+  const btn = document.getElementById('refreshBtn');
+  btn.disabled = true;
+  btn.classList.add('loading');
+  loaded = 0; errors = 0; articles = 0;
+
+  const regions = [...new Set(SOURCES.map(s => s.region))];
+  const app = document.getElementById('app');
+  app.innerHTML = regions.map(r => `
+    <div class="region-group" data-region="${r}">
+      <div class="region-heading">${r}</div>
+      ${SOURCES.filter(s => s.region === r).map(buildSkeleton).join('')}
+    </div>`).join('');
+
+  applyFilter(activeRegion);
+  await Promise.allSettled(SOURCES.map(loadFeed));
+
+  document.getElementById('last-updated').textContent =
+    'Updated ' + new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+  btn.disabled = false;
+  btn.classList.remove('loading');
+}
+
+window.addEventListener('DOMContentLoaded', loadAllFeeds);
+</script>
+</body>
+</html>
