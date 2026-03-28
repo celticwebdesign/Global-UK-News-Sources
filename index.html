@@ -284,32 +284,56 @@ const SOURCES = [
   { name:'Tico Times', country:'Costa Rica', flag:'🇨🇷', region:'Latin America', url:'https://ticotimes.net/feed', home:'https://ticotimes.net' },
 ];
 
-// Each proxy needs different response handling:
-// allorigins returns JSON { contents: "<xml>..." }
-// corsproxy.io and codetabs return raw text
-const PROXIES = [
-  { make: u => `https://api.allorigins.win/get?url=${encodeURIComponent(u)}`, mode: 'json' },
-  { make: u => `https://corsproxy.io/?${encodeURIComponent(u)}`, mode: 'text' },
-  { make: u => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`, mode: 'text' },
-];
-
-async function fetchRSS(rssUrl) {
-  for (const proxy of PROXIES) {
-    try {
-      const res = await fetch(proxy.make(rssUrl), { signal: AbortSignal.timeout(12000) });
-      if (!res.ok) continue;
-      if (proxy.mode === 'json') {
-        const json = await res.json();
-        if (!json.contents) continue;
-        return json.contents;
-      } else {
-        const text = await res.text();
-        if (!text || text.trim().startsWith('{')) continue; // skip if got JSON error response
-        return text;
+// Strategy 1: rss2json — dedicated RSS-to-JSON API, handles CORS + XML parsing
+// Strategy 2: allorigins /raw — returns raw feed content as text
+// Strategy 3: corsproxy.io — raw text fallback
+async function fetchFeed(rssUrl) {
+  // --- Strategy 1: rss2json (returns pre-parsed JSON items) ---
+  try {
+    const r2jUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rssUrl)}`;
+    const res = await fetch(r2jUrl, { signal: AbortSignal.timeout(12000) });
+    if (res.ok) {
+      const json = await res.json();
+      if (json.status === 'ok' && Array.isArray(json.items) && json.items.length) {
+        return { mode: 'rss2json', items: json.items };
       }
-    } catch(e) { /* try next proxy */ }
-  }
-  throw new Error('All proxies failed');
+    }
+  } catch(e) { /* fall through */ }
+
+  // --- Strategy 2: allorigins raw (returns raw XML/Atom text) ---
+  try {
+    const rawUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(rssUrl)}`;
+    const res = await fetch(rawUrl, { signal: AbortSignal.timeout(12000) });
+    if (res.ok) {
+      const text = await res.text();
+      if (text && (text.includes('<item') || text.includes('<entry'))) {
+        return { mode: 'xml', text };
+      }
+    }
+  } catch(e) { /* fall through */ }
+
+  // --- Strategy 3: corsproxy.io (raw text fallback) ---
+  try {
+    const cpUrl = `https://corsproxy.io/?${encodeURIComponent(rssUrl)}`;
+    const res = await fetch(cpUrl, { signal: AbortSignal.timeout(12000) });
+    if (res.ok) {
+      const text = await res.text();
+      if (text && (text.includes('<item') || text.includes('<entry'))) {
+        return { mode: 'xml', text };
+      }
+    }
+  } catch(e) { /* fall through */ }
+
+  throw new Error('All strategies failed');
+}
+
+function parseRss2Json(items) {
+  return items.map(i => ({
+    title: i.title || '',
+    link: i.link || '#',
+    desc: stripHtml(i.description || i.content || ''),
+    date: i.pubDate || '',
+  }));
 }
 
 function parseXML(xmlStr) {
@@ -411,8 +435,8 @@ async function loadFeed(s) {
   const st = document.getElementById(`st-${sl}`);
   const gr = document.getElementById(`gr-${sl}`);
   try {
-    const xml = await fetchRSS(s.url);
-    const items = parseXML(xml);
+    const result = await fetchFeed(s.url);
+    const items = result.mode === 'rss2json' ? parseRss2Json(result.items) : parseXML(result.text);
     articles += Math.min(items.length, 6);
     if (gr) gr.innerHTML = renderCards(s, items);
     if (st) { st.textContent = items.length + ' articles'; st.className = 'source-status ok'; }
